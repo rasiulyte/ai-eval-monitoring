@@ -179,24 +179,105 @@ This pipeline runs when engineers update the evaluation system—autograder prom
 
 ---
 
-## Feedback Loop: Continuous Improvement
+## Feedback Loop: Continuous Improvement (Hillclimbing)
 
-The CI/CD pipeline isn't just for deployment—it drives improvement.
+The CI/CD pipeline isn't just for deployment—it drives continuous improvement through **hillclimbing**.
+
+Hillclimbing is an iterative methodology: detect a problem, analyze root cause, implement a fix, validate improvement, deploy. Repeat.
+
+### Two Hillclimbing Loops
+
+This system has two parallel hillclimbing loops:
+
+| Loop | What improves | Triggered by | Deploys via |
+|------|---------------|--------------|-------------|
+| Autograder hillclimbing | Evaluation accuracy | Human-autograder disagreements | Evaluator Pipeline |
+| Assistant hillclimbing | Response quality | Quality metric drops | Assistant Pipeline |
+
+### Autograder Hillclimbing
+
+When humans and autograder disagree, we improve the autograder:
 ```
-Production Failures Detected
+Tier 4 human review finds disagreement
          ↓
-   Human reviews (Tier 4)
+Analyze: Why did autograder miss this?
+   - Rubric unclear?
+   - Prompt allowing misinterpretation?
+   - Edge case not covered?
          ↓
-   New labeled examples
+Fix: Adjust prompt, rubric, or add examples
+   Example: "Rate conciseness (1-5)"
+   Becomes: "Rate conciseness (1-5). Note: Longer 
+            responses are NOT automatically better."
          ↓
-┌────────────────────────────────┐
-│ Add to golden set              │ → Improves Assistant Pipeline
-├────────────────────────────────┤
-│ Add to autograder test set     │ → Improves Evaluator Pipeline
-├────────────────────────────────┤
-│ Refine rubrics if needed       │ → Triggers Evaluator Pipeline
-└────────────────────────────────┘
+Validate: Re-run on labeled test set
+   - Agreement improves (κ 0.65 → 0.75)?
+   - No regression on other dimensions?
+         ↓
+Deploy: New autograder via Evaluator Pipeline
 ```
+
+### Assistant Hillclimbing
+
+When quality metrics drop, we improve the assistant:
+```
+Monitoring detects category failure spike
+   Example: "math" category at 15% failure rate
+         ↓
+Analyze: Pull failure samples, identify pattern
+   Finding: Model fails multi-step calculations
+         ↓
+Fix: Engineers improve model or prompt
+   - Add chain-of-thought for math queries
+   - Fine-tune on math examples
+         ↓
+Validate: Run against golden set + baseline
+   - Math category improves?
+   - No regression elsewhere?
+         ↓
+Deploy: New model via Assistant Pipeline
+         ↓
+Update: Add failure cases to golden set
+   - Prevents future regression
+```
+
+### The Virtuous Cycle
+
+Both loops feed each other:
+```
+Production Traffic
+       ↓
+Tiered Evaluation (Tiers 1-4)
+       ↓
+┌──────────────────────────────────────────┐
+│           Failures Detected              │
+└──────────────────┬───────────────────────┘
+                   ↓
+     ┌─────────────┴─────────────┐
+     ↓                           ↓
+Autograder wrong?           Assistant wrong?
+     ↓                           ↓
+Hillclimb autograder        Hillclimb assistant
+     ↓                           ↓
+Better evaluation ──────→ Catches more failures
+                                 ↓
+                          Better assistant
+                                 ↓
+                          Fewer failures to catch
+```
+
+**Better evaluation finds more problems. Fixing problems improves quality. Improved quality raises the bar for evaluation.**
+
+### Hillclimbing Metrics
+
+Track improvement over time:
+
+| Metric | Tracks | Goal |
+|--------|--------|------|
+| Autograder-human agreement (κ) | Autograder hillclimbing | Increasing toward 0.8+ |
+| Overall quality score | Assistant hillclimbing | Increasing toward 4.5+ |
+| Golden set size | Coverage | Growing as new failures discovered |
+| Time to detect regression | System maturity | Decreasing |
 
 **Examples:**
 
